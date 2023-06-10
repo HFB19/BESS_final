@@ -81,7 +81,7 @@ for h = -12:0.5:+11.5
      delta = theta_tilt * sind((360/365)*(NumDays+284)); 
      theta_z(iterator) = (acosd(sind(theta_lat)*sind(delta) + cosd(theta_lat)*cosd(delta)*cosd(omega_h(iterator)))); 
    
-    % azimuth
+    % Azimuth information
     cos_zenith = cosd(90 - altitude_angle(iterator));
     sin_zenith = sind(90 - altitude_angle(iterator));
     sin_azimuth = cosd(theta_lat)*sind(omega_h(iterator))/cos_zenith;
@@ -92,7 +92,7 @@ for h = -12:0.5:+11.5
     azimuth(iterator) = -acosd(cos_azimuth);
     end
 
-
+    % Season  information
     if strcmp(condition, 'sunny')
         if ismember(hour(iterator), [6:0.5:8, 15:0.5:17]) % summer months
             weather_factor = interp1(linspace(1, 24, 24), weather_factor_summer, linspace(1, 24, 48));
@@ -111,14 +111,16 @@ for h = -12:0.5:+11.5
 
 
     
-     % irradiance/irradiation & power calculations
-     I = 1.1 * I_o * 0.7^(AM^(0.678)) * weather_factor(iterator);
-    if (cosd(theta_lat)*cosd(delta)*cosd(omega_h(iterator)) + sind(theta_lat)*sind(delta)) <= 0
+    % irradiance/irradiation 
+     cosine_zenith=(cosd(theta_lat)*cosd(delta)*cosd(omega_h(iterator)) + sind(theta_lat)*sind(delta));
+    if (cosine_zenith) <= 0
         G(iterator) = 0;
     else 
-        G(iterator) = 1365 * (cosd(theta_lat)*cosd(delta)*cosd(omega_h(iterator)) + sind(theta_lat)*sind(delta)) * weather_factor(iterator);
+        G(iterator) = 1365 * (cosine_zenith) * weather_factor(iterator);
     end 
- 
+
+
+     %power calculations
      if G(iterator) <= 0 
      total_energy_generated(iterator) = 0;
      total_energy_generated_kWh(iterator) = 0;
