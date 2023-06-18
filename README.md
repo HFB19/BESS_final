@@ -93,5 +93,33 @@ The simulation requires weather factor data for different hours of the day. The 
 
 ## battery_optimised.m
 
+### Input Parameters
 
+- Modify the following parameters in the code according to your requirements:
+
+  - `D`: Input date in the format 'DD-MMM-YYYY'.
+
+ 
+### Dependencies
+
+
+supply_data.mat: Contains minute-by-minute solar supply data.
+export_tariff.mat: Contains the export tariff data.
+import_tariff.mat: Contains the import tariff data.
+combined_demand_adjust.mat: Contains the combined demand adjustment data.
+
+### Code Description
+
+1. Loads the required data files.
+2. The user  input a specific date.
+3. Determines if the input date is a weekday or weekend and identifies the season (winter or summer).
+4. Based on the day type and season, selects the appropriate model and corresponding tariff rates.
+5. Categorizes the import and export tariffs based on their pricing structure and usage patterns.
+6. Sets simulation parameters such as start and end times, time step, and initializes variables.
+7. Simulates the battery behavior and energy exchange with the grid for each time step.
+8. Calculates the profit, import, export, and net power values for each day of the simulation.
+9. Outputs the final results, including the total profit value and various arrays for analysis.
+  
 ## battery_weekly_pattern.m
+
+This code is similar to battery_optimized.m but has additional functionality to simulate battery operation over a weekly and monthly pattern. It performs similar tasks of optimizing battery usage and energy exchange in a solar-powered system, but extends the simulation to cover longer time periods.
