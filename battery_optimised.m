@@ -1,8 +1,10 @@
 clear all; close all; clc;
 % Load minute-by-minute solar and demand data from csv file
 
-load supply_data.mat;load demand_adjust_summer.mat;load export_tariff.mat;load import_tariff.mat
-load demand_adjust.mat;load demand_adjust_summer.mat;load demand_adjust_weekend.mat;load demand_adjust_weekend_summer.mat
+load supply_data.mat;
+load export_tariff.mat;
+load import_tariff.mat
+load('combined_demand_adjust.mat')
 
 %%%%%%%%%%%%%%%%%
 % Input date%
@@ -177,14 +179,14 @@ charge_power = zeros(1, n_steps);
 discharge_power = zeros(1, n_steps);
 charge_energy = zeros(1, n_steps);
 discharge_energy = zeros(1, n_steps);
-net_power = zeros(1, n_steps);
+excess_demand = zeros(1, n_steps);
 battery_energy(1)=0;
 
 %======================================================================
 %                           Grid Parameters 
 %======================================================================
-grid_import_energy = zeros(1, n_steps);
-grid_export_energy = zeros(1, n_steps);
+grid_import_power = zeros(1, n_steps);
+grid_export_power = zeros(1, n_steps);
 grid_import_rate = import_tariff'/100; % $/kWh
 grid_export_rate =export_tariff'/100; % $/kWh
 
@@ -195,15 +197,15 @@ grid_export_rate =export_tariff'/100; % $/kWh
 %                           Prediction Parameters
 %======================================================================
 
-level_charged_at_night=zeros(1,day_in_test);
-level_charged_at_night(1,1) =1;  % Define the battery capacity values you want to test
-export_threshold=zeros(1,day_in_test);
-export_threshold(1) =1;  % Define the battery capacity values you want to test
+charge_level=zeros(1,day_in_test);
+charge_level(1,1) =1;  % Define the battery capacity values you want to test
+retain_level=zeros(1,day_in_test);
+retain_level(1) =1;  % Define the battery capacity values you want to test
 profit_daily = zeros(1, day_in_test);
 export_daily = zeros(1, day_in_test);
 import_daily = zeros(1, day_in_test);
 import_daily_after7 = zeros(1, day_in_test);
-net_power_daily= zeros(1, day_in_test);
+excess_demand_daily= zeros(1, day_in_test);
 import_dailyafter_6 = zeros(1, day_in_test);
 %======================================================================
 %                           Troubleshooting Arrays
@@ -212,60 +214,60 @@ caseArray = [];
 timeArray = [];
 day = 1; % Initialize day counter
 total_profit_value=zeros(11,11);
-level_charged_at_night(1,1)=0.0;
-export_threshold(1,1)=0;
+charge_level(1,1)=0.0;
+retain_level(1,1)=0;
 
 
 
 for t = 2:n_steps
-    net_power(t) = demand_power(t)-solar_power(t); %+ battery_power(t);
+    excess_demand(t) = demand_power(t)-solar_power(t); %+ battery_power(t);
     buy = import_categories_days(t) == 1;
     sell = export_categories_days(t) >= 4;
     % Determine battery charge for discharge during high tariff period
-        if net_power( t) > 0
+        if excess_demand( t) > 0
 
 
-            if battery_energy(t-1) <=level_charged_at_night(1,day)*battery_capacity
+            if battery_energy(t-1) <=charge_level(1,day)*battery_capacity
                 if buy 
 
                     charge_power(t) = max_charge_rate; % this is linear
                     charge_energy(t) = charge_power(t) / 60;
                     battery_energy(t) = min(battery_energy(t-1) + charge_energy(t), battery_capacity);
                     battery_power(t) = min(charge_power(t) * charge_efficiency, max_charge_rate);
-                    grid_import_energy(t) = charge_power(t) + net_power( t);
+                    grid_import_power(t) = charge_power(t) + excess_demand( t);
                     caseArray = [caseArray, 1];
-                    %%Charge battery and net_power from grid
+                    %%Charge battery and excess_demand from grid
 
 
             elseif sell
                 if mod(t-1, 1440) > (18 * 60)
-                    %%% discharge everything to net_power at the end of the day
+                    %%% discharge everything to excess_demand at the end of the day
                     if battery_energy(t-1)~=0
-                    discharge_power(t) = min(net_power( t), max_discharge_rate);
+                    discharge_power(t) = min(excess_demand( t), max_discharge_rate);
                     discharge_energy(t) = discharge_power(t) / 60;
                     battery_energy(t) = max(battery_energy(t-1) - discharge_energy(t) * discharge_efficiency, 0);
                     battery_power(t) = min(discharge_power(t) * discharge_efficiency, max_discharge_rate);
-                    grid_export_energy(t) = discharge_power(t) - net_power( t);
-                     grid_import_energy(t)=0;
+                    grid_export_power(t) = discharge_power(t) - excess_demand( t);
+                     grid_import_power(t)=0;
                     else
-                        grid_import_energy(t)=net_power(t);
-                         grid_export_energy(t)=0;
+                        grid_import_power(t)=excess_demand(t);
+                         grid_export_power(t)=0;
                     end
                      caseArray = [caseArray, 2];
-                elseif battery_energy(t-1) > export_threshold(1,day)*battery_capacity 
-                    discharge_power(t) = min(net_power( t), max_discharge_rate);
+                elseif battery_energy(t-1) > retain_level(1,day)*battery_capacity 
+                    discharge_power(t) = min(excess_demand( t), max_discharge_rate);
                     discharge_energy(t) = discharge_power(t) / 60;
                     battery_energy(t) = max(battery_energy(t-1) - discharge_energy(t) * discharge_efficiency, 0);
                     battery_power(t) = min(discharge_power(t) * discharge_efficiency, max_discharge_rate);
-                    grid_export_energy(t) = discharge_power(t) - net_power( t);
-                     grid_import_energy(t)=0;
+                    grid_export_power(t) = discharge_power(t) - excess_demand( t);
+                     grid_import_power(t)=0;
                      caseArray = [caseArray, 3];
                 else
                     % Battery reaches threshold during discharging, stop discharging and maintain energy
                     battery_energy(t) = battery_energy(t-1);
                     battery_power(t) = 0;
-                    grid_export_energy(t) = 0;
-                    grid_import_energy(t) = net_power( t);
+                    grid_export_power(t) = 0;
+                    grid_import_power(t) = excess_demand( t);
                     caseArray = [caseArray, 4];
                 end
 
@@ -274,32 +276,32 @@ for t = 2:n_steps
           else 
 
                if mod(t-1, 1440) > (18 * 60)
-                    %%% discharge everything to net_power at the end of the day
+                    %%% discharge everything to excess_demand at the end of the day
                     if battery_energy(t-1)~=0
-                    discharge_power(t) = net_power( t);
+                    discharge_power(t) = excess_demand( t);
                     discharge_energy(t) = discharge_power(t) / 60;
                     battery_energy(t) = max(battery_energy(t-1) - discharge_energy(t) * discharge_efficiency, 0);
                     battery_power(t) = min(discharge_power(t) * discharge_efficiency, max_discharge_rate);
-                    grid_export_energy(t) =0;
-                    grid_import_energy(t)=0;
+                    grid_export_power(t) =0;
+                    grid_import_power(t)=0;
                     else
-                     grid_import_energy(t)=net_power(t);
-                     grid_export_energy(t)=0;
+                     grid_import_power(t)=excess_demand(t);
+                     grid_export_power(t)=0;
                     end
                     caseArray = [caseArray, 5];
                 elseif battery_energy(t-1) > 0
-                    discharge_power(t) = min(net_power( t), max_discharge_rate);
+                    discharge_power(t) = min(excess_demand( t), max_discharge_rate);
                     discharge_energy(t) = discharge_power(t) / 60;
                     battery_energy(t) = max(battery_energy(t-1) - discharge_energy(t) * discharge_efficiency, 0);
                     battery_power(t) = min(discharge_power(t) * discharge_efficiency, max_discharge_rate);
-                    grid_import_energy(t) = 0;
-                    grid_export_energy(t) = 0;
+                    grid_import_power(t) = 0;
+                    grid_export_power(t) = 0;
                     caseArray = [caseArray, 6];
                 else
                     battery_energy(t) = battery_energy(t-1);
                      battery_power(t)=0;
                     discharge_power(t) = 0;
-                    grid_import_energy(t) = net_power( t);
+                    grid_import_power(t) = excess_demand( t);
                     caseArray = [caseArray, 7];
                     
                     
@@ -307,35 +309,35 @@ for t = 2:n_steps
                 %%%selfsupply from battery->house
             end
 
-            elseif battery_energy(t-1)>level_charged_at_night(1,day)*battery_capacity
+            elseif battery_energy(t-1)>charge_level(1,day)*battery_capacity
                 if buy 
-                     grid_import_energy(t)=net_power( t);
+                     grid_import_power(t)=excess_demand( t);
                       battery_energy(t) = battery_energy(t-1);
                     battery_power(t) = 0;
                     caseArray = [caseArray, 8];
 
                 elseif sell
-                     discharge_power(t) = min(net_power( t),max_discharge_rate)  ;
+                     discharge_power(t) = min(excess_demand( t),max_discharge_rate)  ;
                      discharge_energy(t) = discharge_power(t) / 60;
                      battery_energy(t) = max(battery_energy(t-1) - discharge_energy(t) * discharge_efficiency, 0);
                      battery_power(t) = min(discharge_power(t) * discharge_efficiency, max_discharge_rate);
-%                      grid_import_energy(t)=net_power( t);
-                     grid_import_energy(t)=net_power( t);
-                     grid_export_energy(t)=discharge_power(t) ;
+%                      grid_import_power(t)=excess_demand( t);
+                     grid_import_power(t)=excess_demand( t);
+                     grid_export_power(t)=discharge_power(t) ;
                      caseArray = [caseArray, 9];
                 else
                     if battery_energy(t-1)~=0
-                     discharge_power(t) = net_power( t)  ;
+                     discharge_power(t) = excess_demand( t)  ;
                      discharge_energy(t) = discharge_power(t) / 60;
                      battery_energy(t) = max(battery_energy(t-1) - discharge_energy(t) * discharge_efficiency, 0);
                      battery_power(t) = min(discharge_power(t) * discharge_efficiency, max_discharge_rate);
-                     grid_import_energy(t)=0;
-                     grid_export_energy(t)=0;
+                     grid_import_power(t)=0;
+                     grid_export_power(t)=0;
                     else
-                      grid_import_energy(t)=net_power( t)  ;
+                      grid_import_power(t)=excess_demand( t)  ;
                      battery_energy(t) = battery_energy(t-1);
                     battery_power(t) = 0;
-                    grid_export_energy(t)=0;
+                    grid_export_power(t)=0;
                     
                       
                     end
@@ -345,8 +347,8 @@ for t = 2:n_steps
             end
 
             %%%netpower<0
-        elseif net_power( t-1) <= 0
-            if battery_energy(t-1) >export_threshold(1,day) * battery_capacity
+        elseif excess_demand( t-1) <= 0
+            if battery_energy(t-1) >retain_level(1,day) * battery_capacity
                 if sell
                     if battery_energy(t-1)~=0
                         discharge_power(t) = max_discharge_rate;
@@ -356,32 +358,32 @@ for t = 2:n_steps
                     discharge_energy(t) = discharge_power(t) / 60;
                     battery_energy(t) = max(battery_energy(t-1) - discharge_energy(t) * discharge_efficiency, 0);
                     battery_power(t) = min(discharge_power(t) * discharge_efficiency, max_discharge_rate);
-                    grid_export_energy(t) = -net_power( t) + discharge_power(t);
+                    grid_export_power(t) = -excess_demand( t) + discharge_power(t);
                 else
-                    grid_export_energy(t) = -net_power( t);
+                    grid_export_power(t) = -excess_demand( t);
                     battery_energy(t) = battery_energy(t-1);
                     battery_power(t) = 0;
                 end
                 caseArray = [caseArray, 11];
-            elseif battery_energy(t-1) <= export_threshold(1,day) * battery_capacity
+            elseif battery_energy(t-1) <= retain_level(1,day) * battery_capacity
                 if sell
                     battery_energy(t) = battery_energy(t-1);
                     battery_power(t) = 0;
-                    grid_export_energy(t) = -net_power( t);
+                    grid_export_power(t) = -excess_demand( t);
                 elseif buy
-                    charge_power(t) = max_charge_rate-net_power(t);
+                    charge_power(t) = max_charge_rate-excess_demand(t);
                     charge_energy(t) = charge_power(t) / 60;
                     battery_energy(t) = min(battery_energy(t-1) + charge_energy(t), battery_capacity);
                     battery_power(t) = min(charge_power(t) * charge_efficiency, max_charge_rate);
-                    grid_import_energy(t) = charge_power(t);
-%                     grid_export_energy(t) = -net_power( t);
+                    grid_import_power(t) = charge_power(t);
+%                     grid_export_power(t) = -excess_demand( t);
                 else
-                    charge_power(t) = -net_power(t);
+                    charge_power(t) = -excess_demand(t);
                     charge_energy(t) = charge_power(t) / 60;
                     battery_energy(t) = min(battery_energy(t-1) + charge_energy(t), battery_capacity);
                     battery_power(t) = min(charge_power(t) * charge_efficiency, max_charge_rate);
-                    grid_import_energy(t) = 0;
-                     grid_export_energy(t) = 0;
+                    grid_import_power(t) = 0;
+                     grid_export_power(t) = 0;
                 end
                 caseArray = [caseArray, 12];
             end
@@ -404,14 +406,14 @@ for t = 2:n_steps
         day = ceil(t / 1440); % Update day counter and round up to the nearest integer
         
         % Reshape the data to have 60-minute intervals
-        hourly_grid_export_energy = reshape(grid_export_energy(t-1439:t), 60, [])';
-        hourly_grid_import_energy = reshape(grid_import_energy(t-1439:t), 60, [])';
-        hourly_net_demand = reshape(net_power(t-1439:t), 60, [])';
+        hourly_grid_export_power = reshape(grid_export_power(t-1439:t), 60, [])';
+        hourly_grid_import_power = reshape(grid_import_power(t-1439:t), 60, [])';
+        hourly_net_demand = reshape(excess_demand(t-1439:t), 60, [])';
 
         % Calculate energy consumed/exported per hour
         hourly_energy_export = zeros(24, 1);
         hourly_energy_import = zeros(24, 1);
-        hourly_net_power = zeros(24, 1);
+        hourly_excess_demand = zeros(24, 1);
         
         for i = 1:24
             % Calculate the time vector (in minutes) for the current hour
@@ -421,14 +423,14 @@ for t = 2:n_steps
             dt = diff(time_vec) / 60;  % divide by 60 to convert to hours
             
             % Integrate the half-hourly energy values, multiplied by the time interval, to get the total energy consumed/exported in kWh for the current hour
-            hourly_energy_export(i) = trapz(time_vec, hourly_grid_export_energy(i,:) .* [dt, dt(end)]/2); % multiply by dt and use trapezoidal rule
-            hourly_energy_import(i) = trapz(time_vec, hourly_grid_import_energy(i,:) .* [dt, dt(end)]/2);
-            hourly_net_power(i) = trapz(time_vec,  hourly_net_demand(i,:) .* [dt, dt(end)]);
+            hourly_energy_export(i) = trapz(time_vec, hourly_grid_export_power(i,:) .* [dt, dt(end)]/2); % multiply by dt and use trapezoidal rule
+            hourly_energy_import(i) = trapz(time_vec, hourly_grid_import_power(i,:) .* [dt, dt(end)]/2);
+            hourly_excess_demand(i) = trapz(time_vec,  hourly_net_demand(i,:) .* [dt, dt(end)]);
         end
         
         % Reshape the data to have 30-minute intervals
-        halfhourly_grid_export_energy = reshape(grid_export_energy(t-1439:t), 30, [])';
-        halfhourly_grid_import_energy = reshape(grid_import_energy(t-1439:t), 30, [])';
+        halfhourly_grid_export_power = reshape(grid_export_power(t-1439:t), 30, [])';
+        halfhourly_grid_import_power = reshape(grid_import_power(t-1439:t), 30, [])';
         
         % Calculate energy consumed/exported per half hour
         half_hourly_energy_export = zeros(48, 1);
@@ -442,8 +444,8 @@ for t = 2:n_steps
             dt = diff(time_vec) / 60;  % divide by 60 to convert to hours
             
             % Integrate the half-hourly energy values, multiplied by the time interval, to get the total energy consumed/exported in kWh for the current hour
-            half_hourly_energy_export(i) = trapz(time_vec, halfhourly_grid_export_energy(i,:) .* [dt, dt(end)]) / 2;  % multiply by dt and use trapezoidal rule
-            half_hourly_energy_import(i) = trapz(time_vec, halfhourly_grid_import_energy(i,:) .* [dt, dt(end)]) / 2;
+            half_hourly_energy_export(i) = trapz(time_vec, halfhourly_grid_export_power(i,:) .* [dt, dt(end)]) / 2;  % multiply by dt and use trapezoidal rule
+            half_hourly_energy_import(i) = trapz(time_vec, halfhourly_grid_import_power(i,:) .* [dt, dt(end)]) / 2;
             total_import_cost(i) = half_hourly_energy_import(i) * grid_import_rate(i);
             total_export_profit(i) = half_hourly_energy_export(i) * grid_export_rate(i);
             total_profit(i) = total_export_profit(i) - total_import_cost(i);
@@ -452,40 +454,42 @@ for t = 2:n_steps
 
       end
 
-
+%==================
+% Predictive algorithm
+%==================
 
      if mod(t, 1440) == 0
         % Update daily variables
         profit_daily(day) = sum(total_profit);
         export_daily(day) = sum(hourly_energy_export);
         import_daily(day)= sum(hourly_energy_import);
-        net_power_daily(day)=sum( hourly_net_power);
-        import_daily_after7(day) = sum(hourly_net_power(7:24));
-        import_dailyafter_6(day) = sum(hourly_net_power(20:24));
-        export_threshold(day+1) = min(1,import_dailyafter_6(day) / 13);
-        level_charged_at_night(day+1) = max(min(net_power_daily(day) / 13, 1),0);
+        excess_demand_daily(day)=sum( hourly_excess_demand);
+        import_daily_after7(day) = sum(hourly_excess_demand(7:24));
+        import_dailyafter_6(day) = sum(hourly_excess_demand(20:24));
+        retain_level(day+1) = min(1,import_dailyafter_6(day) / 13);
+        charge_level(day+1) = max(min(excess_demand_daily(day) / 13, 1),0);
 
         % Accumulate import_daily from previous days
         import_daily_cumulative(day) = import_daily_after7(day);
-        net_power_daily_cumulative(day)=net_power_daily(day);
+        excess_demand_daily_cumulative(day)=excess_demand_daily(day);
         import_dailyafter_6_cumulative(day)=import_dailyafter_6(day);
         n=zeros(1,day_in_test);
         if day > 1
             import_daily_cumulative(day) = import_daily_cumulative(day) + import_daily_cumulative(day-1);
-            net_power_daily_cumulative(day) = net_power_daily_cumulative(day) + net_power_daily_cumulative(day-1);
+            excess_demand_daily_cumulative(day) = excess_demand_daily_cumulative(day) + excess_demand_daily_cumulative(day-1);
             import_dailyafter_6_cumulative(day) = import_dailyafter_6_cumulative(day) + import_dailyafter_6_cumulative(day-1);
             n(1, day) = import_dailyafter_6_cumulative(day) / day;
-            export_threshold(day+1) = min(1, n(1, day) / 13);
-            level_charged_at_night(day+1) = max(min(import_daily_cumulative(day) / (day * 13), 1), 0);
+            retain_level(day+1) = min(1, n(1, day) / 13);
+            charge_level(day+1) = max(min(import_daily_cumulative(day) / (day * 13), 1), 0);
         
         else
             import_daily_cumulative(day) = import_daily_cumulative(day);
-            net_power_daily_cumulative(day) = net_power_daily_cumulative(day);
+            excess_demand_daily_cumulative(day) = excess_demand_daily_cumulative(day);
             import_dailyafter_6_cumulative(day) = import_dailyafter_6_cumulative(day);
-            export_threshold(day+1) = min(1, mean(import_dailyafter_6_cumulative(1:day)) / 13);
-            level_charged_at_night(day+1) = max(min(mean(import_daily_cumulative(1:day)) / (day * 13), 1), 0);
+            retain_level(day+1) = min(1, mean(import_dailyafter_6_cumulative(1:day)) / 13);
+            charge_level(day+1) = max(min(mean(import_daily_cumulative(1:day)) / (day * 13), 1), 0);
         end
-        level_charged_at_night(day+1);
+        charge_level(day+1);
          day=day+1;
 
      end
