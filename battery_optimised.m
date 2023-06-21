@@ -48,7 +48,7 @@ end
 % Determine if the input date is a weekday or weekend day
 % Determine the appropriate model based on weekday/weekend and season
 if weekday && strcmp(season, 'winter')
-   ; % Winter weekday model
+   % Winter weekday model
     import_tariff=import_tariff_weekday_winter;
     export_tariff=export_tariff_weekday_winter;
 
@@ -90,7 +90,7 @@ if strcmp(season, 'winter')
     if strcmp(condition, 'sunny')
         solar_data = horzcat(repmat(supply_winter, 1, day_in_test),repmat(supply_winter_cloudy, 1, 0));
     elseif strcmp(condition, 'cloudy')
-         solar_data = horzcat(repmat(supply_winter, 1, 0,repmat(supply_winter_cloudy, 1, day_in_test));
+         solar_data = horzcat(repmat(supply_winter, 1, 0),repmat(supply_winter_cloudy, 1, day_in_test));
     end
 
     
@@ -105,7 +105,7 @@ elseif strcmp(season, 'summer')
     if strcmp(condition, 'sunny')
         solar_data = horzcat(repmat(supply_summer, 1, day_in_test),repmat(supply_summer_cloudy, 1, 0));
     elseif strcmp(condition, 'cloudy')
-         solar_data = horzcat(repmat(supply_summer, 1, 0,repmat(supply_summer_cloudy, 1, day_in_test));
+         solar_data = horzcat(repmat(supply_summer, 1, 0),repmat(supply_summer_cloudy, 1, day_in_test));
     end
 else
     error('Invalid date. Please choose another day.');
