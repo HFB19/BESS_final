@@ -120,6 +120,6 @@ combined_demand_adjust.mat: Contains the combined demand adjustment data.
 8. Calculates the profit, import, export, and net power values for each day of the simulation.
 9. Outputs the final results, including the total profit value and various arrays for analysis.
   
-## battery_weekly_pattern.m
+## Integrated top_level_model.m
 
-This code is similar to battery_optimized.m but has additional functionality to simulate battery operation over a weekly and monthly pattern. It performs similar tasks of optimizing battery usage and energy exchange in a solar-powered system, but extends the simulation to cover longer time periods.
+This code is the top level model for all demand ,supply , and battery model. It is an integration of the whole system
