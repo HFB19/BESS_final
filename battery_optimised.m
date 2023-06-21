@@ -10,7 +10,7 @@ load('combined_demand_adjust.mat')
 % Input date%
 %%%%%%%%%%%%%%%%%%
 D =' 26-June-2022';%%only choose winter
-
+condition='sunny';
 [DayNumber,DayName] = weekday(D);
 
 if DayNumber == 1 || DayNumber == 7
@@ -48,22 +48,22 @@ end
 % Determine if the input date is a weekday or weekend day
 % Determine the appropriate model based on weekday/weekend and season
 if weekday && strcmp(season, 'winter')
-    day_season = 11; % Winter weekday model
+   ; % Winter weekday model
     import_tariff=import_tariff_weekday_winter;
     export_tariff=export_tariff_weekday_winter;
 
 elseif weekday && strcmp(season, 'summer')
-    day_season = 12; % Summer weekday model
+     % Summer weekday model
     import_tariff=import_tariff_weekday_summer;
     export_tariff=export_tariff_weekday_summer;
 
 elseif weekend && strcmp(season, 'winter')
-    day_season = 21; % Winter weekend mode
+    % Winter weekend mode
     import_tariff=import_tariff_weekend_winter;
     export_tariff=export_tariff_weekend_winter;
   
 elseif weekend && strcmp(season, 'summer')
-    day_season = 22; % Summer weekend model
+    % Summer weekend model
      import_tariff=import_tariff_weekend_summer;
      export_tariff=export_tariff_weekend_summer;
 
@@ -76,23 +76,44 @@ end
 %======================================================================
 %                   Concatenating demand and supply data
 %======================================================================
-week_in_test = 1;
-random_integer = randi([1,7]);
+day_in_test = 1;
+
+
 
 % Determine the appropriate model based on weekday/weekend and season
 if strcmp(season, 'winter')
-    solar_data = horzcat(repmat(supply_winter, 1, random_integer),repmat(supply_winter_cloudy, 1, 7-random_integer ));
-    demand_data = horzcat(repmat(demand_adjust_weekday'/1000, 1, 5), repmat(demand_adjust_weekend'/1000, 1, 2));
+    if weekday
+        demand_data = horzcat(repmat(demand_adjust_weekday'/1000, 1, day_in_test), repmat(demand_adjust_weekend'/1000, 1, 0));
+    elseif weekend
+        demand_data = horzcat(repmat(demand_adjust_weekday'/1000, 1, 0), repmat(demand_adjust_weekend'/1000, 1, day_in_test));
+    end
+    if strcmp(condition, 'sunny')
+        solar_data = horzcat(repmat(supply_winter, 1, day_in_test),repmat(supply_winter_cloudy, 1, 0));
+    elseif strcmp(condition, 'cloudy')
+         solar_data = horzcat(repmat(supply_winter, 1, 0,repmat(supply_winter_cloudy, 1, day_in_test));
+    end
+
+    
 elseif strcmp(season, 'summer')
-    solar_data = horzcat(repmat(supply_summer, 1, random_integer),repmat(supply_summer_cloudy, 1, 7-random_integer ));
-  demand_data = horzcat(repmat(demand_adjust_weekday_summer'/1000, 1, 5), repmat(demand_adjust_weekend_summer'/1000, 1, 2));
+
+
+   if weekday
+        demand_data = horzcat(repmat(demand_adjust_weekday_summer'/1000, 1, day_in_test), repmat(demand_adjust_weekend_summer'/1000, 1, 0));
+    elseif weekend
+        demand_data = horzcat(repmat(demand_adjust_weekday_summer'/1000, 1, 0), repmat(demand_adjust_weekend_summer'/1000, 1, day_in_test));
+    end
+    if strcmp(condition, 'sunny')
+        solar_data = horzcat(repmat(supply_summer, 1, day_in_test),repmat(supply_summer_cloudy, 1, 0));
+    elseif strcmp(condition, 'cloudy')
+         solar_data = horzcat(repmat(supply_summer, 1, 0,repmat(supply_summer_cloudy, 1, day_in_test));
+    end
 else
     error('Invalid date. Please choose another day.');
 end
 
 % Randomly select the order of sunny and cloudy days in the week
 
-day_in_test=week_in_test*7;
+
 
 
 
